@@ -13,8 +13,14 @@ export default defineConfig({
     server: { entry: "server" },
   },
   nitro: {
-    preset: "node-server",
-    env: ["SUPABASE_SERVICE_ROLE_KEY", "ADMIN_SETUP_SECRET"],
+    // Render/local: node-server (.output/server). Vercel CI define VERCEL=1 → preset vercel.
+    preset: process.env.VERCEL ? "vercel" : "node-server",
+    env: [
+      "VITE_SUPABASE_URL",
+      "VITE_SUPABASE_ANON_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "ADMIN_SETUP_SECRET",
+    ],
   },
   // SSR no Render falha com jsxDEV (runtime de dev) se development=true no OXC.
   vite: {
