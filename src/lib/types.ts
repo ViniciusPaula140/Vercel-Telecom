@@ -26,6 +26,12 @@ export type Evidencia = {
   tecnico_login?: string;
 };
 
+/** Foto já comprimida e enviada direto ao Supabase Storage (browser). */
+export type EvidencePhotoRef = {
+  path: string;
+  publicUrl: string;
+};
+
 export type EvidenciaInsert = {
   contrato: string;
   wo: string;

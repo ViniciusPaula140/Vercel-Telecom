@@ -1,5 +1,5 @@
-const MAX_EDGE = 960;
-const JPEG_QUALITY = 0.65;
+const MAX_EDGE = 720;
+const JPEG_QUALITY = 0.55;
 
 function scaleToMax(width: number, height: number, max: number) {
   if (width <= max && height <= max) return { width, height };
@@ -85,7 +85,7 @@ async function sourceToJpegFile(
   });
 }
 
-function waitForGc(): Promise<void> {
+export function waitForImageMemoryRelease(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
@@ -111,7 +111,7 @@ export async function replaceEvidencePhoto(
 
   if (previous) {
     onChange(null);
-    await waitForGc();
+    await waitForImageMemoryRelease();
   }
 
   const compressed = await compressEvidencePhoto(next);

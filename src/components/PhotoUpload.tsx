@@ -1,46 +1,29 @@
 import { Camera, Upload, X, ImageIcon, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { replaceEvidencePhoto } from "@/lib/compress-image";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { compressEvidencePhoto, waitForImageMemoryRelease } from "@/lib/compress-image";
+import { removeEvidencePhotos, uploadEvidencePhoto } from "@/lib/evidencias-service";
+import type { EvidencePhotoRef } from "@/lib/types";
 
 export function PhotoUpload({
   label,
+  tecnicoId,
+  suffix,
   value,
   onChange,
   onBeforePick,
 }: {
   label: string;
-  value: File | null;
-  onChange: (file: File | null) => void;
+  tecnicoId: string;
+  suffix: "inicio" | "fim";
+  value: EvidencePhotoRef | null;
+  onChange: (photo: EvidencePhotoRef | null) => void;
   onBeforePick?: () => void;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const previewRef = useRef<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false);
-
-  useEffect(() => {
-    if (previewRef.current) {
-      URL.revokeObjectURL(previewRef.current);
-      previewRef.current = null;
-    }
-
-    if (!value) {
-      setPreview(null);
-      return;
-    }
-
-    const url = URL.createObjectURL(value);
-    previewRef.current = url;
-    setPreview(url);
-
-    return () => {
-      if (previewRef.current === url) {
-        URL.revokeObjectURL(url);
-        previewRef.current = null;
-      }
-    };
-  }, [value]);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<"compressing" | "uploading">("compressing");
 
   const openPicker = (target: "camera" | "gallery") => {
     onBeforePick?.();
@@ -51,14 +34,43 @@ export function PhotoUpload({
     galleryRef.current?.click();
   };
 
+  const clearPhoto = async () => {
+    if (value?.path) {
+      try {
+        await removeEvidencePhotos([value.path]);
+      } catch {
+        // ignora falha ao limpar orphan no storage
+      }
+    }
+    onChange(null);
+  };
+
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
 
-    setCompressing(true);
+    setBusy(true);
+    setStatus("compressing");
     try {
-      await replaceEvidencePhoto(value, file, onChange);
+      if (value?.path) {
+        onChange(null);
+        await waitForImageMemoryRelease();
+        try {
+          await removeEvidencePhotos([value.path]);
+        } catch {
+          // segue com novo upload
+        }
+      }
+
+      const compressed = await compressEvidencePhoto(file);
+      await waitForImageMemoryRelease();
+
+      setStatus("uploading");
+      const uploaded = await uploadEvidencePhoto(tecnicoId, compressed, suffix);
+      onChange(uploaded);
+    } catch (err) {
+      toast.error(`Erro ao processar foto: ${(err as Error).message || "tente novamente"}`);
     } finally {
-      setCompressing(false);
+      setBusy(false);
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
     }
@@ -67,15 +79,15 @@ export function PhotoUpload({
   return (
     <div>
       <div className="mb-2 text-sm font-semibold text-foreground">{label}</div>
-      {compressing ? (
+      {busy ? (
         <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted text-sm text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
-          Otimizando imagem...
+          {status === "compressing" ? "Otimizando imagem..." : "Enviando ao storage..."}
         </div>
-      ) : preview ? (
+      ) : value ? (
         <div className="relative overflow-hidden rounded-xl border border-border bg-muted">
           <img
-            src={preview}
+            src={value.publicUrl}
             alt={label}
             decoding="async"
             loading="lazy"
@@ -83,7 +95,7 @@ export function PhotoUpload({
           />
           <button
             type="button"
-            onClick={() => onChange(null)}
+            onClick={() => void clearPhoto()}
             className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-background/90 text-destructive shadow"
             aria-label="Remover foto"
           >

@@ -7,8 +7,8 @@ import { useApp } from "@/lib/app-store";
 import { requireTecnico } from "@/lib/auth-guards";
 import {
   insertEvidencia,
-  uploadEvidencePhoto,
 } from "@/lib/evidencias-service";
+import type { EvidencePhotoRef } from "@/lib/types";
 import {
   clearMetragemDraft,
   loadMetragemDraft,
@@ -43,8 +43,8 @@ function MetragemPage() {
   const [wo, setWo] = useState(initialDraft?.wo ?? "");
   const [metInicial, setMetInicial] = useState(initialDraft?.metInicial ?? "");
   const [metFinal, setMetFinal] = useState(initialDraft?.metFinal ?? "");
-  const [fotoInicio, setFotoInicio] = useState<File | null>(null);
-  const [fotoFim, setFotoFim] = useState<File | null>(null);
+  const [fotoInicio, setFotoInicio] = useState<EvidencePhotoRef | null>(null);
+  const [fotoFim, setFotoFim] = useState<EvidencePhotoRef | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showIncompleteAlert, setShowIncompleteAlert] = useState(false);
 
@@ -116,21 +116,16 @@ function MetragemPage() {
 
     setSubmitting(true);
     try {
-      const [inicioUpload, fimUpload] = await Promise.all([
-        uploadEvidencePhoto(user.id, fotoInicio, "inicio"),
-        uploadEvidencePhoto(user.id, fotoFim, "fim"),
-      ]);
-
       await insertEvidencia({
         contrato: contrato.trim(),
         wo: wo.trim(),
         metragem_inicial: mi,
         metragem_final: mf,
         total_utilizado: total!,
-        foto_inicio_url: inicioUpload.publicUrl,
-        foto_fim_url: fimUpload.publicUrl,
-        foto_inicio_path: inicioUpload.path,
-        foto_fim_path: fimUpload.path,
+        foto_inicio_url: fotoInicio.publicUrl,
+        foto_fim_url: fotoFim.publicUrl,
+        foto_inicio_path: fotoInicio.path,
+        foto_fim_path: fotoFim.path,
         tecnico_id: user.id,
       });
 
@@ -250,12 +245,14 @@ function MetragemPage() {
 
           <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
-              <strong className="font-semibold">Dica:</strong> se &quot;Tirar Foto&quot; der erro de
-              memória no celular, tire a foto pelo app <strong>Câmera</strong> do aparelho e use{" "}
-              <strong>Fazer Upload</strong> para anexar a imagem.
+              <strong className="font-semibold">Dica:</strong> cada foto é comprimida e enviada
+              direto ao storage ao selecionar. Se &quot;Tirar Foto&quot; falhar no celular, use o app{" "}
+              <strong>Câmera</strong> e depois <strong>Fazer Upload</strong>.
             </p>
             <PhotoUpload
               label="📸 Foto do Início"
+              tecnicoId={user!.id}
+              suffix="inicio"
               value={fotoInicio}
               onChange={setFotoInicio}
               onBeforePick={persistDraftNow}
@@ -263,6 +260,8 @@ function MetragemPage() {
             {fotoInicio ? (
               <PhotoUpload
                 label="📸 Foto do Fim"
+                tecnicoId={user!.id}
+                suffix="fim"
                 value={fotoFim}
                 onChange={setFotoFim}
                 onBeforePick={persistDraftNow}

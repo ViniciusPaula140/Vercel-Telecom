@@ -3,6 +3,12 @@ import type { Evidencia, EvidenciaInsert } from "./types";
 
 const EVIDENCIAS_BUCKET = "evidencias-fotos";
 
+function assertBrowserUpload(): void {
+  if (typeof window === "undefined") {
+    throw new Error("Upload de fotos deve ocorrer no navegador, não no servidor.");
+  }
+}
+
 type PhotoPathsRow = {
   foto_inicio_path?: string | null;
   foto_fim_path?: string | null;
@@ -100,19 +106,21 @@ export async function fetchAllEvidencias(): Promise<Evidencia[]> {
   });
 }
 
+/** Upload direto browser → Supabase Storage (sem passar pelo Vercel/serverless). */
 export async function uploadEvidencePhoto(
   tecnicoId: string,
   file: File,
   suffix: "inicio" | "fim",
 ): Promise<{ path: string; publicUrl: string }> {
-  const supabase = getSupabaseClient();
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const path = `${tecnicoId}/${crypto.randomUUID()}-${suffix}.${ext}`;
+  assertBrowserUpload();
 
-  const { error } = await supabase.storage.from("evidencias-fotos").upload(path, file, {
+  const supabase = getSupabaseClient();
+  const path = `${tecnicoId}/${crypto.randomUUID()}-${suffix}.jpg`;
+
+  const { error } = await supabase.storage.from(EVIDENCIAS_BUCKET).upload(path, file, {
     cacheControl: "3600",
     upsert: false,
-    contentType: file.type || "image/jpeg",
+    contentType: "image/jpeg",
   });
 
   if (error) throw error;
@@ -121,6 +129,8 @@ export async function uploadEvidencePhoto(
 }
 
 export async function insertEvidencia(payload: EvidenciaInsert): Promise<Evidencia> {
+  assertBrowserUpload();
+
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("evidencias")
